@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu Questionnaire</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        #dateTime {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Jeu Questionnaire</h1>
+    <div id="dateTime"></div>
+    <div>
+        <p id="enterName">Entrer votre nom : </p>
+        <input type="text" placeholder="Name" id="name" autocomplete="off">
+    </div>
+    <button id="register">S'inscrire</button>
+    
+    <div id="gameSection" style="display: none;">
+        <h2>Le jeu commence !</h2>
+        <p id="playerInfo"></p>
+        <p id="questionSection" style="display: none;"></p>
+    </div>
+
+    <div id="resultSection" style="display: none;"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        document.getElementById("register").addEventListener("click", function() {
+            const name = document.getElementById("name").value;
+
+            if (!name) {
+                alert("Veuillez entrer un nom.");
+                return;
+            }
+
+            socket.emit("register", name);
+            document.getElementById("enterName").style.display = "none";
+            document.getElementById("name").style.display = "none";
+            document.getElementById("register").style.display = "none";
+        });
+
+        socket.on("startGame", (players) => {
+            document.getElementById("gameSection").style.display = "block";
+            const playerNames = players.map(player => player.name).join(" et ");
+            document.getElementById("playerInfo").innerText = `Joueurs connectés : ${playerNames}`;
+        });
+
+        socket.on("newQuestion", (data) => {
+            // Afficher la question
+            const questionElement = document.getElementById("questionSection");
+            questionElement.innerText = data.question;
+            questionElement.style.display = "block";
+
+            // Créez des boutons pour les réponses
+            questionElement.innerHTML += `
+                <button id="trueButton">Vrai</button>
+                <button id="falseButton">Faux</button>
+            `;
+
+            // Gestion des réponses
+            document.getElementById("trueButton").onclick = () => submitAnswer(true, data.questionId);
+            document.getElementById("falseButton").onclick = () => submitAnswer(false, data.questionId);
+        });
+
+        // Écouter les mises à jour du datetime
+        socket.on("updateDateTime", (currentDateTime) => {
+            document.getElementById("dateTime").innerText = `Date et Heure : ${currentDateTime}`;
+        });
+
+        const submitAnswer = (answer, questionId) => {
+            socket.emit("answer", { answer, questionId });
+        };
+
+        socket.on("result", (data) => {
+            const resultMessage = data.isCorrect ? "Correct!" : "Incorrect!";
+            document.getElementById("resultSection").innerHTML = `
+                <p>${data.fastestPlayer} a répondu le plus rapidement avec un temps de ${data.responseTime} ms.</p>
+                <p>Réponse correcte: ${data.correctAnswer ? "Vrai" : "Faux"}</p>
+                <p>${data.player} a répondu : ${resultMessage}</p>
+            `;
+            document.getElementById("resultSection").style.display = "block";
+        });
+
+        // Écouter la fin du jeu
+        socket.on("gameOver", () => {
+            document.getElementById("resultSection").innerHTML = `<p>Le jeu est terminé ! Merci d'avoir joué.</p>`;
+            document.getElementById("resultSection").style.display = "block";
+            document.getElementById("gameSection").style.display = "none";
+        });
+    </script>
+</body>
+</html>
